@@ -1,21 +1,56 @@
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import MetaData
+#!/usr/bin/env python3
 
-# contains definitions of tables and associated schema constructs
-metadata = MetaData()
+from flask import Flask, make_response
+from flask_migrate import Migrate
+from models import db, Pet
 
-# create the Flask SQLAlchemy extension
-db = SQLAlchemy(metadata=metadata)
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.json.compact = False  # Pretty-print JSON
 
-# define a model class by inheriting from db.Model.
+migrate = Migrate(app, db)
+db.init_app(app)
 
+# Root Route
+@app.route('/')
+def index():
+    body = {'message': 'Welcome to the pet directory!'}
+    return make_response(body, 200)
 
-class Pet(db.Model):
-    __tablename__ = 'pets'
+# Get Pet by ID
+@app.route('/pets/<int:id>')
+def pet_by_id(id):
+    pet = Pet.query.filter(Pet.id == id).first()
+    if pet:
+        body = {
+            'id': pet.id,
+            'name': pet.name,
+            'species': pet.species
+        }
+        status = 200
+    else:
+        body = {'message': f'Pet {id} not found.'}
+        status = 404
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    species = db.Column(db.String)
+    return make_response(body, status)
 
-    def __repr__(self):
-        return f'<Pet {self.id}, {self.name}, {self.species}>'
+# Get Pets by Species
+@app.route('/species/<string:species>')
+def pet_by_species(species):
+    pets = []
+    for pet in Pet.query.filter_by(species=species).all():
+        pet_dict = {
+            'id': pet.id,
+            'name': pet.name
+        }
+        pets.append(pet_dict)
+
+    body = {
+        'count': len(pets),
+        'pets': pets
+    }
+    return make_response(body, 200)
+
+if __name__ == '__main__':
+    app.run(port=5555, debug=True)
